@@ -15,7 +15,8 @@
     menuBtn.setAttribute('aria-label', 'Open menu');
   }
   menuBtn.addEventListener('click', () => {
-    const open = menu.classList.toggle('hidden') === false;
+    // toggle() returns true when 'hidden' was added, i.e. the menu just closed
+    const open = !menu.classList.toggle('hidden');
     menuBtn.setAttribute('aria-expanded', String(open));
     menuBtn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
   });
@@ -31,42 +32,50 @@
 
   // ---- Copy email ----
   const copyBtn = document.getElementById('copy-email');
+  let copyResetTimer;
   copyBtn.addEventListener('click', async () => {
     const email = copyBtn.dataset.email;
-    let ok = false;
+    let copied = false;
     try {
       await navigator.clipboard.writeText(email);
-      ok = true;
+      copied = true;
     } catch (e) {
-      // Fallback for older browsers / non-secure contexts (e.g. file://)
-      const ta = document.createElement('textarea');
-      ta.value = email;
-      ta.setAttribute('readonly', '');
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
-      document.body.removeChild(ta);
+      // Fallback when the Clipboard API is missing or blocked (old browsers, file://)
+      const textarea = document.createElement('textarea');
+      textarea.value = email;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try { copied = document.execCommand('copy'); } catch (err) { copied = false; }
+      document.body.removeChild(textarea);
     }
-    copyBtn.textContent = ok ? 'Copied!' : 'Copy failed';
-    copyBtn.classList.toggle('copied', ok);
-    setTimeout(() => {
+    copyBtn.textContent = copied ? 'Copied!' : 'Copy failed';
+    copyBtn.classList.toggle('copied', copied);
+    // Restart the timer so a second click gets its own full 2 seconds of feedback
+    clearTimeout(copyResetTimer);
+    copyResetTimer = setTimeout(() => {
       copyBtn.textContent = 'Copy Email';
       copyBtn.classList.remove('copied');
     }, 2000);
   });
 
   // ---- Highlight the nav link for the section in view ----
-  const links = document.querySelectorAll('.nav-link');
-  const sections = [...links].map((l) => document.querySelector(l.getAttribute('href'))).filter(Boolean);
+  const navLinks = document.querySelectorAll('.nav-link');
+  const sections = [...navLinks]
+    .map((link) => document.querySelector(link.getAttribute('href')))
+    .filter(Boolean);
   if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver((entries) => {
+    // A section counts as "in view" when it crosses a thin band just above the viewport's middle
+    const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
-        links.forEach((l) => l.classList.toggle('active', l.getAttribute('href') === '#' + entry.target.id));
+        navLinks.forEach((link) => {
+          link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id);
+        });
       });
     }, { rootMargin: '-45% 0px -50% 0px' });
-    sections.forEach((s) => io.observe(s));
+    sections.forEach((section) => observer.observe(section));
   }
 })();
